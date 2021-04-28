@@ -1,0 +1,48 @@
+# import packages.
+library(tseries)
+library(forecast)
+library(stats)
+library(e1071)
+
+bolsa_expo <- function(input_file, n_samples){
+  datos <- read.csv(here::here(paste0('data/', input_file)), sep="," )
+  datos$mean <- log(datos$mean)
+  train_size <- round(1 *nrow(datos), 0) # since we're guessing the future, we use 100% of data.
+  train <- datos[1:train_size, ]  # 100%
+  
+  train_size1 <- round(0.9*nrow(datos), 0)
+  train1 <- datos[1:train_size1, ] 
+  test1 <- datos[train_size1:nrow(datos), ] 
+  
+  # time series
+  precio <- ts(train$mean, start=c(2016,04,13), frequency=365)
+  fit <- HoltWinters(precio, gamma=F)
+  
+  precio1 <- ts(train1$mean, start=c(2016,04,13), frequency=365)
+  fit1 <- HoltWinters(precio1, gamma=F)
+  
+  # stats
+  fit_e <- as.data.frame(predict(fit1, n.ahead=(nrow(test1)), prediction.interval=F))
+  df <- data.frame(z=test1$mean, zhat=fit_e$fit)
+  # SSE
+  SSE <- sum((df$z -df$zhat)^2)
+  # MSE
+  MSE <- sum((df$z -df$zhat)^2) /nrow(df)
+  # MAPE
+  MAPE <- (sum(abs(df$z -df$zhat) /df$z) /(nrow(df))) *100
+  
+  # Predict
+  prediction <- predict(fit, n.ahead=(n_samples), prediction.interval=F, level=0.9)#intervalo de prediccion
+  
+  output <- NULL
+  temp_df <- data.frame(prediction)
+  output$forecast <- list(temp_df$fit)[[1]]
+  
+  stats <- NULL
+  stats$MAPE <- MAPE
+  stats$SSE <- SSE
+  stats$MSE <- MSE
+  
+  output$stats <- stats
+  return(output)
+}
